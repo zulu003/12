@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>8x8 Arcade Snake Game</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            touch-action: manipulation;
+        }
+
+        /* Pop animation for floating text */
+        @keyframes floatUp {
+            0% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(0.5) rotate(-10deg);
+            }
+            50% {
+                opacity: 1;
+                transform: translate(-50%, -100%) scale(1.4) rotate(10deg);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -150%) scale(1) rotate(0deg);
+            }
+        }
+
+        .pop-text {
+            position: absolute;
+            animation: floatUp 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            pointer-events: none;
+            font-family: 'Jua', sans-serif;
+            z-index: 50;
+        }
+
+        /* Pulse glow animation for apple */
+        @keyframes appleGlow {
+            0%, 100% { transform: scale(1); filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.6)); }
+            50% { transform: scale(1.08); filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.9)); }
+        }
+
+        .apple-anim {
+            animation: appleGlow 1.2s infinite ease-in-out;
+        }
+
+        /* Grid Cell Styling */
+        .grid-cell {
+            aspect-ratio: 1 / 1;
+            transition: all 0.05s ease-in-out;
+        }
+
+        /* Custom shadow utilities for buttons */
+        .btn-arcade {
+            box-shadow: 0 6px 0 0 rgba(0, 0, 0, 0.25);
+        }
+        .btn-arcade:active {
+            box-shadow: 0 2px 0 0 rgba(0, 0, 0, 0.25);
+            transform: translateY(4px);
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-3 select-none overflow-x-hidden">
+
+    <!-- Game Container -->
+    <div class="w-full max-w-md bg-slate-800 rounded-3xl p-5 border-4 border-slate-700 shadow-2xl relative flex flex-col items-center">
+        
+        <!-- Header & Score Display -->
+        <div class="w-full flex justify-between items-center mb-4 bg-slate-900/80 px-4 py-3 rounded-2xl border border-slate-700 shadow-inner">
+            <div class="flex items-center gap-2">
+                <!-- Inline SVG Apple Icon -->
+                <svg class="w-7 h-7 text-red-500 animate-bounce" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                </svg>
+                <div class="flex flex-col">
+                    <span class="text-xs text-slate-400 font-bold uppercase tracking-wider">획득한 사과</span>
+                    <span id="score-text" class="text-3xl font-extrabold text-yellow-400 leading-none">0</span>
+                </div>
+            </div>
+
+            <!-- Pause Button & High Score Display -->
+            <div class="flex items-center gap-3">
+                <button id="pause-btn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 w-10 h-10 rounded-xl border border-slate-600 flex items-center justify-center transition-all btn-arcade" title="일시정지 (Space)">
+                    <span id="pause-icon" class="flex items-center justify-center">
+                        <!-- Inline SVG Pause Icon -->
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                    </span>
+                </button>
+                <div class="flex flex-col items-center">
+                    <span class="text-xs text-amber-400/80 font-bold uppercase tracking-wider flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 24 24"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94A5.01 5.01 0 0 0 11 15.9V18H9v2h6v-2h-2v-2.1c1.92-.45 3.39-2.02 3.61-3.96C19.08 11.63 21 9.55 21 7V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/></svg>
+                        최대 기록
+                    </span>
+                    <span id="high-score-text" class="text-2xl font-black text-amber-300 leading-none">0</span>
+                </div>
+            </div>
+            
+            <div class="flex flex-col items-end">
+                <span class="text-xs text-slate-400 font-bold uppercase tracking-wider">뱀 길이</span>
+                <span id="length-text" class="text-2xl font-bold text-emerald-400 leading-none">1 / 64</span>
+            </div>
+        </div>
+
+        <!-- 8x8 Canvas / Board Area -->
+        <div class="relative w-full aspect-square bg-slate-950 rounded-2xl p-2 border-2 border-slate-700 shadow-inner overflow-hidden">
+            <!-- 8x8 Grid Layout -->
+            <div id="grid-container" class="grid grid-cols-8 grid-rows-8 gap-1 w-full h-full">
+                <!-- 64 cells generated by JavaScript -->
+            </div>
+
+            <!-- Floating Overlay Pop-up Container -->
+            <div id="popup-layer" class="absolute inset-0 pointer-events-none"></div>
+
+            <!-- Pause Screen Overlay -->
+            <div id="pause-screen" class="hidden absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-40 rounded-2xl">
+                <svg class="w-16 h-16 text-yellow-400 mb-3 animate-pulse" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+                <h2 class="text-3xl font-black text-white mb-4">일시정지됨</h2>
+                <button id="resume-btn" class="w-full max-w-[200px] py-3 px-6 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-lg btn-arcade transition-all flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>계속 하기
+                </button>
+            </div>
+
+            <!-- Game Over Overlay -->
+            <div id="game-over-screen" class="hidden absolute inset-0 bg-slate-950/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-40 rounded-2xl animate-fade-in">
+                <div class="bg-red-500/20 text-red-400 border border-red-500/40 p-3 rounded-full mb-3">
+                    <svg class="w-10 h-10" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/></svg>
+                </div>
+                <h2 class="text-3xl font-black text-red-500 mb-1">GAME OVER</h2>
+                <p class="text-slate-400 text-sm mb-4">벽이나 자신의 몸체에 부딪혔습니다!</p>
+                
+                <div class="flex gap-3 mb-6 w-full max-w-[240px]">
+                    <div class="bg-slate-900/90 px-3 py-3 rounded-xl border border-slate-800 flex-1">
+                        <span class="text-xs text-slate-400 block mb-1">획득한 사과</span>
+                        <span id="final-score" class="text-3xl font-extrabold text-yellow-400">0</span>
+                    </div>
+                    <div class="bg-slate-900/90 px-3 py-3 rounded-xl border border-amber-500/30 flex-1">
+                        <span class="text-xs text-amber-400 block mb-1">최대 기록</span>
+                        <span id="final-high-score" class="text-3xl font-extrabold text-amber-300">0</span>
+                    </div>
+                </div>
+
+                <button id="restart-btn" class="w-full max-w-[200px] py-3 px-6 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-lg btn-arcade transition-all flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>다시 하기
+                </button>
+            </div>
+
+            <!-- Start / Pause Screen -->
+            <div id="start-screen" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-40 rounded-2xl">
+                <svg class="w-16 h-16 text-emerald-400 mb-3 animate-pulse" fill="currentColor" viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H9v2H7v-2H5v-2h2V9h2v2h2v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm3-3c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
+                <h1 class="text-3xl font-black text-white mb-2">8x8 뱀 게임</h1>
+                <p class="text-slate-300 text-xs mb-6 leading-relaxed">
+                    사과를 먹어 몸을 늘리세요!<br>
+                    64칸을 모두 채우면 길이가 리셋됩니다.
+                </p>
+                <button id="start-btn" class="w-full max-w-[200px] py-3 px-6 bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-black rounded-xl text-lg btn-arcade transition-all flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>게임 시작
+                </button>
+            </div>
+        </div>
+
+        <!-- Touch Controls (Mobile & Accessibility) -->
+        <div class="w-full mt-5 grid grid-cols-3 gap-2 max-w-[260px]">
+            <div></div>
+            <button id="btn-up" class="h-12 bg-slate-700 active:bg-emerald-500 text-white active:text-slate-950 rounded-xl flex items-center justify-center btn-arcade text-xl transition-all">
+                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>
+            </button>
+            <div></div>
+
+            <button id="btn-left" class="h-12 bg-slate-700 active:bg-emerald-500 text-white active:text-slate-950 rounded-xl flex items-center justify-center btn-arcade text-xl transition-all">
+                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z"/></svg>
+            </button>
+            <button id="btn-down" class="h-12 bg-slate-700 active:bg-emerald-500 text-white active:text-slate-950 rounded-xl flex items-center justify-center btn-arcade text-xl transition-all">
+                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
+            </button>
+            <button id="btn-right" class="h-12 bg-slate-700 active:bg-emerald-500 text-white active:text-slate-950 rounded-xl flex items-center justify-center btn-arcade text-xl transition-all">
+                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+            </button>
+        </div>
+        
+        <!-- Controls Helper Info -->
+        <div class="mt-4 text-xs text-slate-500 flex items-center gap-2">
+            <span>방향키 / Space(정지)</span>
+            <span>|</span>
+            <span>화면 버튼 조작</span>
+        </div>
+    </div>
+
+    <!-- Web Audio API Synthesizer Sound Engine -->
+    <script>
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        // Sound 1: Cute "뾱" Sound on Apple Eat
+        function playEatSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = 'sine';
+            // Rapid pitch drop to mimic cute "뾱"
+            osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.12);
+
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.12);
+        }
+
+        // Sound 2: Special 64 Tile Clear Sound (Fanfare)
+        function playResetSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+            notes.forEach((freq, index) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime + index * 0.08);
+
+                gain.gain.setValueAtTime(0.25, audioCtx.currentTime + index * 0.08);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + index * 0.08 + 0.2);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start(audioCtx.currentTime + index * 0.08);
+                osc.stop(audioCtx.currentTime + index * 0.08 + 0.2);
+            });
+        }
+
+        // Sound 3: Game Over Sound
+        function playGameOverSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(250, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(80, audioCtx.currentTime + 0.4);
+
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.4);
+        }
+    </script>
+
+    <!-- Game Logic Script -->
+    <script>
+        // Constants
+        const GRID_SIZE = 8;
+        const TOTAL_CELLS = GRID_SIZE * GRID_SIZE; // 64
+        const INITIAL_SPEED = 450; // Ms per tick (기본 속도)
+        const MIN_SPEED = 300; // 최대 속도 제한 (최소 ms)
+        const SPEED_STEP = 10; // 사과 5개당 감소할 ms
+        const APPLES_PER_SPEEDUP = 5; // 속도 증가 기준 개수
+
+        // Game State Variables
+        let snake = []; // Array of {x, y}
+        let direction = { x: 1, y: 0 }; // Current direction
+        let nextDirection = { x: 1, y: 0 }; // Direction buffered for next tick
+        let apple = { x: 0, y: 0 };
+        let score = 0; // Total apples eaten
+        let currentSpeed = INITIAL_SPEED; // 현재 틱 속도
+        let highScore = parseInt(localStorage.getItem('snake_high_score') || '0', 10);
+        let gameInterval = null;
+        let isRunning = false;
+        let isPaused = false;
+
+        // DOM Element References
+        const gridContainer = document.getElementById('grid-container');
+        const popupLayer = document.getElementById('popup-layer');
+        const scoreText = document.getElementById('score-text');
+        const highScoreText = document.getElementById('high-score-text');
+        const lengthText = document.getElementById('length-text');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const pauseScreen = document.getElementById('pause-screen');
+        const pauseBtn = document.getElementById('pause-btn');
+        const pauseIcon = document.getElementById('pause-icon');
+        const resumeBtn = document.getElementById('resume-btn');
+        const finalScoreText = document.getElementById('final-score');
+        const finalHighScoreText = document.getElementById('final-high-score');
+        const startBtn = document.getElementById('start-btn');
+        const restartBtn = document.getElementById('restart-btn');
+
+        // Render 8x8 Grid Elements in DOM
+        const cellsMap = [];
+        function createGrid() {
+            gridContainer.innerHTML = '';
+            for (let r = 0; r < GRID_SIZE; r++) {
+                cellsMap[r] = [];
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'grid-cell rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center relative';
+                    gridContainer.appendChild(cell);
+                    cellsMap[r][c] = cell;
+                }
+            }
+        }
+
+        // Initialize Game State
+        function initGame() {
+            // Snake initial position (center left)
+            snake = [
+                { x: 2, y: 3 },
+                { x: 1, y: 3 }
+            ];
+            direction = { x: 1, y: 0 };
+            nextDirection = { x: 1, y: 0 };
+            score = 0;
+            currentSpeed = INITIAL_SPEED;
+            
+            updateScoreDisplay();
+            spawnApple();
+            renderBoard();
+        }
+
+        // Spawn Apple at random empty spot
+        function spawnApple() {
+            // Check if grid is totally full
+            if (snake.length >= TOTAL_CELLS) {
+                return; // Handled during movement check
+            }
+
+            const emptyCells = [];
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    const isSnakeBody = snake.some(segment => segment.x === c && segment.y === r);
+                    if (!isSnakeBody) {
+                        emptyCells.push({ x: c, y: r });
+                    }
+                }
+            }
+
+            if (emptyCells.length > 0) {
+                const randomIndex = Math.floor(Math.random() * emptyCells.length);
+                apple = emptyCells[randomIndex];
+            }
+        }
+
+        // Core Game Tick
+        function gameTick() {
+            direction = { ...nextDirection };
+            const head = { ...snake[0] };
+            const newHead = { x: head.x + direction.x, y: head.y + direction.y };
+
+            // 1. Wall Collision Check
+            if (newHead.x < 0 || newHead.x >= GRID_SIZE || newHead.y < 0 || newHead.y >= GRID_SIZE) {
+                triggerGameOver();
+                return;
+            }
+
+            // 2. Self Body Collision Check (except tail if it's leaving)
+            const willEat = (newHead.x === apple.x && newHead.y === apple.y);
+            const checkSegments = willEat ? snake : snake.slice(0, -1);
+            if (checkSegments.some(seg => seg.x === newHead.x && seg.y === newHead.y)) {
+                triggerGameOver();
+                return;
+            }
+
+            // Move Snake Head forward
+            snake.unshift(newHead);
+
+            // 3. Apple Eating Logic
+            if (willEat) {
+                score++;
+                updateScoreDisplay();
+                playEatSound();
+                showPopUpEffect(newHead.x, newHead.y, '뾱!');
+
+                // 사과 5개마다 속도 조절 (최대 300ms까지)
+                updateGameSpeed();
+
+                // Check Special 64 Cell Full Board Rule
+                if (snake.length === TOTAL_CELLS) {
+                    playResetSound();
+                    showPopUpEffect(newHead.x, newHead.y, '🎉 64칸 달성! 길이 리셋!');
+                    // Keep only head, reset length back to 1
+                    snake = [newHead];
+                }
+
+                spawnApple();
+            } else {
+                // Remove Tail if no apple eaten
+                snake.pop();
+            }
+
+            renderBoard();
+        }
+
+        // Update Game Speed based on apples eaten
+        function updateGameSpeed() {
+            const speedLevels = Math.floor(score / APPLES_PER_SPEEDUP);
+            const newSpeed = Math.max(MIN_SPEED, INITIAL_SPEED - (speedLevels * SPEED_STEP));
+
+            if (newSpeed !== currentSpeed) {
+                currentSpeed = newSpeed;
+                if (isRunning && gameInterval) {
+                    clearInterval(gameInterval);
+                    gameInterval = setInterval(gameTick, currentSpeed);
+                }
+            }
+        }
+
+        // Render Snake and Apple on Grid
+        function renderBoard() {
+            // Clear all cell inner states & classes
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    const cell = cellsMap[r][c];
+                    cell.className = 'grid-cell rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center relative';
+                    cell.style.opacity = '1';
+                    cell.innerHTML = '';
+                }
+            }
+
+            // Render Apple with Inline SVG
+            if (apple) {
+                const appleCell = cellsMap[apple.y][apple.x];
+                appleCell.innerHTML = `<svg class="w-6 h-6 text-red-500 apple-anim" fill="currentColor" viewBox="0 0 24 24"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>`;
+            }
+
+            // Render Snake Body & Head
+            snake.forEach((seg, index) => {
+                const cell = cellsMap[seg.y][seg.x];
+                if (index === 0) {
+                    // Head - 항상 밝고 눈에 띄게 연두/노랑 빛 가미 및 밝은 눈 적용
+                    cell.className = 'grid-cell rounded-lg bg-emerald-300 border-2 border-emerald-100 flex items-center justify-center shadow-lg shadow-emerald-400/60 z-10';
+                    // Eyes rotation based on direction
+                    let eyeRotation = 'rotate-0';
+                    if (direction.x === 1) eyeRotation = 'rotate-90';
+                    if (direction.x === -1) eyeRotation = '-rotate-90';
+                    if (direction.y === 1) eyeRotation = 'rotate-180';
+
+                    cell.innerHTML = `
+                        <div class="flex gap-1.5 ${eyeRotation} transition-transform duration-75">
+                            <div class="w-2 h-2 bg-white rounded-full border border-slate-900 flex items-center justify-center">
+                                <div class="w-1 h-1 bg-slate-950 rounded-full"></div>
+                            </div>
+                            <div class="w-2 h-2 bg-white rounded-full border border-slate-900 flex items-center justify-center">
+                                <div class="w-1 h-1 bg-slate-950 rounded-full"></div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    // Body
+                    const opacity = Math.max(0.4, 1 - (index / (snake.length + 5)));
+                    cell.className = 'grid-cell rounded-lg bg-emerald-500 border border-emerald-600/50';
+                    cell.style.opacity = opacity;
+                }
+            });
+
+            lengthText.textContent = `${snake.length} / ${TOTAL_CELLS}`;
+        }
+
+        // Trigger Popup Floating Animation
+        function showPopUpEffect(gridX, gridY, text) {
+            const cell = cellsMap[gridY][gridX];
+            const rect = cell.getBoundingClientRect();
+            const parentRect = popupLayer.getBoundingClientRect();
+
+            const popEl = document.createElement('div');
+            popEl.className = 'pop-text text-yellow-300 text-xl font-black drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]';
+            popEl.textContent = text;
+            
+            // Calculate absolute position inside container overlay
+            const left = rect.left - parentRect.left + rect.width / 2;
+            const top = rect.top - parentRect.top + rect.height / 2;
+
+            popEl.style.left = `${left}px`;
+            popEl.style.top = `${top}px`;
+
+            popupLayer.appendChild(popEl);
+
+            setTimeout(() => {
+                popEl.remove();
+            }, 850);
+        }
+
+        // Update Score Elements
+        function updateScoreDisplay() {
+            scoreText.textContent = score;
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('snake_high_score', highScore.toString());
+            }
+            highScoreText.textContent = highScore;
+        }
+
+        // Start Game loop
+        function startGame() {
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            pauseScreen.classList.add('hidden');
+            initGame();
+            isRunning = true;
+            isPaused = false;
+            updatePauseUI();
+            if (gameInterval) clearInterval(gameInterval);
+            gameInterval = setInterval(gameTick, currentSpeed);
+        }
+
+        // Toggle Pause Logic
+        function togglePause() {
+            if (!isRunning) return;
+
+            if (isPaused) {
+                // Resume game
+                isPaused = false;
+                pauseScreen.classList.add('hidden');
+                gameInterval = setInterval(gameTick, currentSpeed);
+            } else {
+                // Pause game
+                isPaused = true;
+                clearInterval(gameInterval);
+                pauseScreen.classList.remove('hidden');
+            }
+            updatePauseUI();
+        }
+
+        // Update Pause Button Icon UI
+        function updatePauseUI() {
+            if (isPaused) {
+                pauseIcon.innerHTML = `<svg class="w-5 h-5 text-emerald-400" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
+            } else {
+                pauseIcon.innerHTML = `<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+            }
+        }
+
+        // Game Over logic
+        function triggerGameOver() {
+            isRunning = false;
+            isPaused = false;
+            clearInterval(gameInterval);
+            playGameOverSound();
+            finalScoreText.textContent = score;
+            finalHighScoreText.textContent = highScore;
+            gameOverScreen.classList.remove('hidden');
+            pauseScreen.classList.add('hidden');
+            updatePauseUI();
+        }
+
+        // Direction Setter Helper
+        function changeDirection(dx, dy) {
+            if (!isRunning || isPaused) return;
+            // Prevent 180-degree immediate self collision turn
+            if (direction.x + dx === 0 && direction.y + dy === 0) return;
+            nextDirection = { x: dx, y: dy };
+        }
+
+        // Event Listeners: Keyboard Inputs
+        window.addEventListener('keydown', (e) => {
+            if (e.key === ' ' || e.key === 'p' || e.key === 'P') {
+                togglePause();
+                e.preventDefault();
+                return;
+            }
+
+            switch (e.key) {
+                case 'ArrowUp':
+                case 'w':
+                case 'W':
+                    changeDirection(0, -1);
+                    e.preventDefault();
+                    break;
+                case 'ArrowDown':
+                case 's':
+                case 'S':
+                    changeDirection(0, 1);
+                    e.preventDefault();
+                    break;
+                case 'ArrowLeft':
+                case 'a':
+                case 'A':
+                    changeDirection(-1, 0);
+                    e.preventDefault();
+                    break;
+                case 'ArrowRight':
+                case 'd':
+                case 'D':
+                    changeDirection(1, 0);
+                    e.preventDefault();
+                    break;
+            }
+        });
+
+        // Touch Control Buttons
+        document.getElementById('btn-up').addEventListener('click', () => changeDirection(0, -1));
+        document.getElementById('btn-down').addEventListener('click', () => changeDirection(0, 1));
+        document.getElementById('btn-left').addEventListener('click', () => changeDirection(-1, 0));
+        document.getElementById('btn-right').addEventListener('click', () => changeDirection(1, 0));
+
+        // Pause & Resume Button Events
+        pauseBtn.addEventListener('click', togglePause);
+        resumeBtn.addEventListener('click', togglePause);
+
+        // Start & Restart Button Click Events
+        startBtn.addEventListener('click', startGame);
+        restartBtn.addEventListener('click', startGame);
+
+        // On Load Init
+        window.onload = () => {
+            createGrid();
+            highScoreText.textContent = highScore;
+        };
+    </script>
+</body>
+</html>
